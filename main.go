@@ -27,7 +27,7 @@ func main() {
 	concurrent_requests := flag.Int("c", 1, "Number of Concurrent requests to be sent")
 	flag.Parse()
 
-	ResponseCode_Count := make(map[int]int)
+	var ResponseCode_Count sync.Map
 
 	var wg sync.WaitGroup
 	for i := 0; i < *concurrent_requests; i++ {
@@ -41,9 +41,10 @@ func main() {
 	fmt.Println()
 	fmt.Printf("Request count by Status Code:-\n")
 
-	for k, v := range ResponseCode_Count {
+	ResponseCode_Count.Range(func(k, v interface{}) bool {
 		fmt.Printf(" %v:%v\n", k, v)
-	}
+		return true // Continue iterating, return false to stop
+	})
 
 	//Measuring Metrics
 	var min_TTFB int = math.MaxInt
@@ -74,7 +75,7 @@ func main() {
 
 }
 
-func make_request(method, url, body *string, number_of_requests *int, wg *sync.WaitGroup, ResponseCode_Count *map[int]int) {
+func make_request(method, url, body *string, number_of_requests *int, wg *sync.WaitGroup, ResponseCode_Count *sync.Map) {
 	defer (*wg).Done()
 	for *number_of_requests > 0 {
 		//Making the Request
@@ -88,7 +89,14 @@ func make_request(method, url, body *string, number_of_requests *int, wg *sync.W
 		}
 
 		//Incrementing StatusCode count on map for metrics
-		(*ResponseCode_Count)[statusCode]++
+		curr_val, is_val_present := (*ResponseCode_Count).Load(statusCode)
+		var val_to_be_stored int
+		if !is_val_present {
+			val_to_be_stored = 0
+		} else {
+			val_to_be_stored = curr_val.(int) + 1
+		}
+		(*ResponseCode_Count).Store(statusCode, val_to_be_stored)
 		*number_of_requests--
 	}
 }
@@ -122,9 +130,9 @@ func max_uint64(a *uint64, b *uint64) uint64 {
 }
 
 func ms_to_seconds_uint64(v *uint64) float64 {
-	return float64(*v) / 1000
+	return float64(*v) / 1e9
 }
 
 func ms_to_seconds(v *int) float64 {
-	return float64(*v) / 1000
+	return float64(*v) / 1e9
 }
