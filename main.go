@@ -1,20 +1,17 @@
 package main
 
 import (
-	"bufio"
+	"flag"
 	"fmt"
-	"log"
-	"os"
 )
 
 func main() {
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Scan()
-	err := scanner.Err()
-	if err != nil {
-		log.Fatal("there was a error initializing the scanner")
-	}
-	line := scanner.Text()
-	response := Decode_And_Fetch_Response(line)
-	fmt.Println(response)
+	url := flag.String("url", "", "The URL to request")
+	method := flag.String("method", "GET", "HTTP method (GET, POST, etc.)")
+	body := flag.String("body", "", "Body to sent with the outgoing request")
+	flag.Parse()
+	status, statusCode, Response := Decode_And_Fetch_Response(*method, *url, *body)
+	fmt.Printf("Status:-%v \n", status)
+	fmt.Printf("statusCode:-%v\n", statusCode)
+	fmt.Printf("response:-%v\n", Response)
 }
