@@ -1,9 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
+	"log"
 	"math"
+	"os"
+	"regexp"
+	"strings"
 	"sync"
 )
 
@@ -25,14 +30,61 @@ func main() {
 	body := flag.String("bd", "", "Body to sent with the outgoing request")
 	number_of_requests := flag.Int("n", 1, "Number of times to send the request")
 	concurrent_requests := flag.Int("c", 1, "Number of Concurrent requests to be sent")
+	read_from_file := flag.String("f", "", "File path from which we will be reading the urls to send requests to")
 	flag.Parse()
 
 	var ResponseCode_Count sync.Map
 
 	var wg sync.WaitGroup
-	for i := 0; i < *concurrent_requests; i++ {
-		wg.Add(1)
-		go make_request(method, url, body, number_of_requests, &wg, &ResponseCode_Count)
+
+	if *read_from_file == "" {
+		for i := 0; i < *concurrent_requests; i++ {
+			wg.Add(1)
+			go make_request(method, url, body, number_of_requests, &wg, &ResponseCode_Count)
+		}
+	} else {
+		file, err := os.Open(*read_from_file)
+		if err != nil {
+			log.Fatalf("error loading urls from the file as %v", err.Error())
+		}
+		defer file.Close()
+
+		urlScanner := bufio.NewScanner(file)
+		type current_request struct {
+			url    string
+			method string
+			body   string
+		}
+		var requests_initial []current_request
+		for urlScanner.Scan() {
+			current_line := urlScanner.Text()
+			splitted_strings := strings.Split(current_line, " ")
+			var current_method string
+			switch splitted_strings[0] {
+			case "GET", "POST", "PUT", "DELETE", "PATCH":
+				current_method = splitted_strings[0]
+			default:
+				current_method = "GET"
+			}
+			var current_body string
+			for i := 2; i < len(splitted_strings); i++ {
+				current_body += splitted_strings[i]
+				current_body += " "
+			}
+			if isValidURL(splitted_strings[1]) {
+				requests_initial = append(requests_initial, current_request{
+					url:    splitted_strings[1],
+					body:   current_body,
+					method: current_method,
+				})
+			}
+		}
+		for _, v := range requests_initial {
+			for i := 0; i < *concurrent_requests; i++ {
+				wg.Add(1)
+				go make_request(&v.method, &v.url, &v.body, number_of_requests, &wg, &ResponseCode_Count)
+			}
+		}
 	}
 	wg.Wait()
 
@@ -43,7 +95,7 @@ func main() {
 
 	ResponseCode_Count.Range(func(k, v interface{}) bool {
 		fmt.Printf(" %v:%v\n", k, v)
-		return true // Continue iterating, return false to stop
+		return true
 	})
 
 	//Measuring Metrics
@@ -135,4 +187,10 @@ func ms_to_seconds_uint64(v *uint64) float64 {
 
 func ms_to_seconds(v *int) float64 {
 	return float64(*v) / 1e9
+}
+
+func isValidURL(url string) bool {
+	regex := `^(https?://)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(:[0-9]+)?(/.*)?$`
+	re := regexp.MustCompile(regex)
+	return re.MatchString(url)
 }

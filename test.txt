@@ -1,0 +1,5 @@
+PUT http://jsonplaceholder.typicode.com/posts/1 {"title": "updated title", "body": "updated body", "userId": 1}
+POST http://jsonplaceholder.typicode.com/posts {"title": "new post", "body": "content of new post", "userId": 2}
+PATCH http://jsonplaceholder.typicode.com/posts/1 {"title": "patched title"}
+DELETE http://jsonplaceholder.typicode.com/posts/2 {}
+GET http://jsonplaceholder.typicode.com/posts/1 {}
